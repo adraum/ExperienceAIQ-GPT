@@ -141,7 +141,7 @@ export default function App() {
             <div className="inline-flex items-center justify-center p-4 bg-indigo-600 text-white rounded-2xl mb-6 shadow-lg shadow-indigo-200">
               <Brain className="w-12 h-12" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-4">Experience AIQ</h1>
+            <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-4">Experience <span className="text-indigo-600">AI</span>Q</h1>
             <p className="text-xl text-slate-500 font-medium">Unlock next level CX intelligence</p>
           </div>
           
@@ -199,7 +199,7 @@ export default function App() {
               <Brain className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight leading-none">Experience AIQ</h1>
+              <h1 className="text-xl font-bold tracking-tight leading-none">Experience <span className="text-indigo-600">AI</span>Q</h1>
               <p className="text-xs font-medium text-slate-500 mt-1">CX Intelligence Platform</p>
             </div>
           </div>
