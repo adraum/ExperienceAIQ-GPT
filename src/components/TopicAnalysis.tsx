@@ -5,6 +5,7 @@ import { MessageSquare, TrendingUp, Download } from 'lucide-react';
 import { downloadChartAsImage } from '../utils/downloadImage';
 import { OverallSentimentBreakdown } from './OverallSentimentBreakdown';
 import { TopicTrendsChart } from './TopicTrendsChart';
+import { CXMatrix } from './CXMatrix';
 
 interface TopicAnalysisProps {
   allReviews: AnalyzedReview[];
@@ -504,6 +505,9 @@ export const TopicAnalysis: React.FC<TopicAnalysisProps> = ({ allReviews, filter
           </div>
         </div>
       </div>
+
+      {/* CX Performance Matrix */}
+      <CXMatrix reviews={filteredReviews} filterA={filterA} filterB={filterB} />
     </div>
   );
 };
