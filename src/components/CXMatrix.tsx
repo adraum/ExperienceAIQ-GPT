@@ -173,29 +173,162 @@ export const CXMatrix: React.FC<CXMatrixProps> = ({ reviews, filterA, filterB })
       maxY = Math.ceil(maxY / 10) * 10;
     }
 
-    // Assign label positions to avoid overlap
+    // Assign label positions to avoid overlap using a greedy placement algorithm
     const xRange = maxVolume - minVolume || 1;
     const yRange2 = maxY - minY || 1;
     
-    rawData.forEach((d, i) => {
-      let pos = 'top';
-      const overlaps = (p: string) => {
-        for (let j = 0; j < i; j++) {
-          const other = rawData[j];
-          const dx = Math.abs(d.volume - other.volume) / xRange;
-          const dy = Math.abs(d.yValue - other.yValue) / yRange2;
-          if (dx < 0.08 && dy < 0.08 && other.labelPosition === p) {
-            return true;
-          }
-        }
-        return false;
-      };
+    // Approximate chart dimensions based on common container size
+    const chartW = 800;
+    const chartH = 400;
+    
+    const dotBoxes = rawData.map(d => {
+      const px = ((d.volume - minVolume) / xRange) * chartW;
+      const py = chartH - ((d.yValue - minY) / yRange2) * chartH;
+      return { x: px - 4, y: py - 4, width: 8, height: 8, px, py, d };
+    });
 
-      if (overlaps('top')) pos = 'bottom';
-      if (pos === 'bottom' && overlaps('bottom')) pos = 'right';
-      if (pos === 'right' && overlaps('right')) pos = 'left';
+    const labelBoxes: any[] = [];
+    // Sort dots by volume ascending, so we place labels from left to right.
+    // This ensures dots on the left get their labels placed closer, creating a more natural reading flow.
+    const sortedDots = [...dotBoxes].sort((a, b) => a.d.volume - b.d.volume);
+
+    const angles = [
+      -Math.PI / 2, // top
+      0, // right
+      Math.PI / 2, // bottom
+      Math.PI, // left
+      -Math.PI / 4, // top-right
+      -3 * Math.PI / 4, // top-left
+      Math.PI / 4, // bottom-right
+      3 * Math.PI / 4 // bottom-left
+    ];
+
+    const getLabelRect = (px: number, py: number, width: number, height: number, angle: number, radius: number) => {
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
       
-      d.labelPosition = pos;
+      const cx = px + radius * cosA;
+      const cy = py + radius * sinA;
+      
+      let textAnchor = 'middle';
+      let rectX = cx;
+      let rectY = cy;
+      let labelX = cx;
+      let labelY = cy;
+
+      if (Math.abs(cosA) < 0.1) {
+        textAnchor = 'middle';
+        rectX = cx - width / 2;
+        if (sinA < 0) { // top
+           rectY = cy - height;
+           labelY = cy - height / 2;
+        } else { // bottom
+           rectY = cy;
+           labelY = cy + height / 2;
+        }
+      } else if (cosA > 0) {
+        textAnchor = 'start';
+        rectX = cx;
+        rectY = cy - height / 2;
+        labelY = cy;
+      } else {
+        textAnchor = 'end';
+        rectX = cx - width;
+        rectY = cy - height / 2;
+        labelY = cy;
+      }
+
+      return {
+        x: rectX,
+        y: rectY,
+        width,
+        height,
+        cx,
+        cy,
+        textAnchor,
+        labelX,
+        labelY,
+        radius
+      };
+    };
+
+    const rectIntersect = (r1: any, r2: any, padX = 2, padY = 2) => {
+      return !(r2.x > r1.x + r1.width + padX || 
+               r2.x + r2.width + padX < r1.x || 
+               r2.y > r1.y + r1.height + padY ||
+               r2.y + r2.height + padY < r1.y);
+    };
+
+    const outOfBounds = (r: any) => {
+      // Allow slightly outside the chart area, but within SVG margins
+      return r.x < -15 || r.y < -50 || r.x + r.width > chartW + 35 || r.y + r.height > chartH + 15;
+    };
+
+    sortedDots.forEach(dot => {
+      const words = dot.d.name.split(' ');
+      const lines = [];
+      let currentLine = words[0];
+      for (let i = 1; i < words.length; i++) {
+        if (currentLine.length + words[i].length > 15) {
+          lines.push(currentLine);
+          currentLine = words[i];
+        } else {
+          currentLine += ' ' + words[i];
+        }
+      }
+      lines.push(currentLine);
+      
+      const estWidth = Math.max(...lines.map(l => l.length)) * 6.5; // Slightly wider estimate to prevent horizontal overlap
+      const estHeight = lines.length * 12 + 4; // Add a little vertical padding
+
+      let bestRect = null;
+      let placed = false;
+
+      for (let radius = 12; radius <= 200; radius += 8) {
+        for (const angle of angles) {
+          const rect = getLabelRect(dot.px, dot.py, estWidth, estHeight, angle, radius);
+          
+          if (outOfBounds(rect)) continue;
+          
+          let overlap = false;
+          for (const otherLabel of labelBoxes) {
+            if (rectIntersect(rect, otherLabel, 4, 4)) { // Increased padding between labels
+              overlap = true;
+              break;
+            }
+          }
+          if (overlap) continue;
+          
+          for (const otherDot of dotBoxes) {
+            if (otherDot === dot) continue;
+            if (rectIntersect(rect, otherDot, 4, 4)) {
+              overlap = true;
+              break;
+            }
+          }
+          if (overlap) continue;
+          
+          bestRect = rect;
+          placed = true;
+          break;
+        }
+        if (placed) break;
+      }
+
+      if (!placed) {
+        // Fallback to top if completely stuck
+        bestRect = getLabelRect(dot.px, dot.py, estWidth, estHeight, -Math.PI / 2, 12);
+      }
+
+      bestRect.lines = lines;
+      bestRect.d = dot.d;
+      labelBoxes.push(bestRect);
+      
+      dot.d.labelXOffset = bestRect.labelX - dot.px;
+      dot.d.labelYOffset = bestRect.labelY - dot.py;
+      dot.d.textAnchor = bestRect.textAnchor;
+      dot.d.lines = lines;
+      dot.d.showLine = bestRect.radius > 16; // Show line if we had to push it away
     });
 
     const leftWidthRatio = (xMid - minVolume) / xRange;
@@ -260,41 +393,58 @@ export const CXMatrix: React.FC<CXMatrixProps> = ({ reviews, filterA, filterB })
     }
     lines.push(currentLine);
 
-    const pos = entry.labelPosition || 'top';
-    let xOffset = 0;
-    let yOffset = 0;
-    let textAnchor = "middle";
+    const xOffset = entry.labelXOffset || 0;
+    const yOffset = entry.labelYOffset || -15;
+    const textAnchor = entry.textAnchor || 'middle';
+    const showLine = entry.showLine;
 
-    if (pos === 'top') {
-      yOffset = -10 - (lines.length - 1) * 12;
-    } else if (pos === 'bottom') {
-      yOffset = 18;
-    } else if (pos === 'right') {
-      xOffset = 12;
-      yOffset = - (lines.length - 1) * 6;
-      textAnchor = "start";
-    } else if (pos === 'left') {
-      xOffset = -12;
-      yOffset = - (lines.length - 1) * 6;
-      textAnchor = "end";
+    const labelX = centerX + xOffset;
+    const labelY = centerY + yOffset;
+
+    // Calculate line target
+    let lineTargetX = labelX;
+    let lineTargetY = labelY;
+    
+    if (textAnchor === 'start') {
+      lineTargetX -= 2;
+    } else if (textAnchor === 'end') {
+      lineTargetX += 2;
+    } else {
+      if (yOffset > 0) {
+        lineTargetY = labelY - (lines.length * 12) / 2 - 2;
+      } else {
+        lineTargetY = labelY + (lines.length * 12) / 2 + 2;
+      }
     }
 
     return (
-      <text 
-        x={centerX + xOffset} 
-        y={centerY + yOffset} 
-        textAnchor={textAnchor} 
-        fill="#475569" 
-        fontSize="11px" 
-        fontWeight={600} 
-        opacity={opacity}
-      >
-        {lines.map((line, i) => (
-          <tspan key={i} x={centerX + xOffset} dy={i === 0 ? 0 : 12}>
-            {line}
-          </tspan>
-        ))}
-      </text>
+      <g opacity={opacity}>
+        {showLine && (
+          <line 
+            x1={centerX} 
+            y1={centerY} 
+            x2={lineTargetX} 
+            y2={lineTargetY} 
+            stroke="#94a3b8" 
+            strokeWidth={1} 
+            strokeDasharray="2 2"
+          />
+        )}
+        <text 
+          x={labelX} 
+          y={labelY - (lines.length - 1) * 12 / 2} 
+          textAnchor={textAnchor} 
+          fill="#475569" 
+          fontSize="11px" 
+          fontWeight={600} 
+        >
+          {lines.map((line, i) => (
+            <tspan key={i} x={labelX} dy={i === 0 ? '0.3em' : 12}>
+              {line}
+            </tspan>
+          ))}
+        </text>
+      </g>
     );
   };
 
