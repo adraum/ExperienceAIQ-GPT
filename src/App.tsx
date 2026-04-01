@@ -19,6 +19,8 @@ export default function App() {
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [analyzedCount, setAnalyzedCount] = useState(0);
+  const [totalReviewsCount, setTotalReviewsCount] = useState(0);
   const [analysisStep, setAnalysisStep] = useState('');
   const [error, setError] = useState<string | null>(null);
   
@@ -96,6 +98,8 @@ export default function App() {
     setError(null);
     setIsAnalyzing(true);
     setAnalysisProgress(0);
+    setAnalyzedCount(0);
+    setTotalReviewsCount(data.length);
     
     try {
       setAnalysisStep('Detecting language...');
@@ -115,7 +119,11 @@ export default function App() {
           description: t.description
         })), 
         lang,
-        (progress) => setAnalysisProgress(20 + Math.floor(progress * 0.6))
+        (progress, analyzed, total) => {
+          setAnalysisProgress(20 + Math.floor(progress * 0.6));
+          setAnalyzedCount(analyzed);
+          setTotalReviewsCount(total);
+        }
       );
       setAnalyzedReviews(analyzed);
       
@@ -163,13 +171,18 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
         <div className="max-w-md w-full bg-white p-10 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 text-center">
-          <div className="relative w-24 h-24 mx-auto mb-8">
+          <div className="relative w-24 h-24 mx-auto mb-6">
             <div className="absolute inset-0 border-4 border-indigo-100 rounded-full"></div>
             <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
             <div className="absolute inset-0 flex items-center justify-center text-indigo-600 font-bold">
               {analysisProgress}%
             </div>
           </div>
+          {analysisStep === 'Analyzing individual reviews for themes and sentiment...' && totalReviewsCount > 0 && (
+            <div className="mb-6 text-sm font-semibold text-indigo-600 bg-indigo-50 inline-block px-3 py-1 rounded-full">
+              {analyzedCount} / {totalReviewsCount} reviews analyzed
+            </div>
+          )}
           <h2 className="text-2xl font-bold text-slate-800 mb-2">Analyzing Data</h2>
           <p className="text-slate-500 font-medium">{analysisStep}</p>
           <div className="w-full bg-slate-100 h-2 rounded-full mt-8 overflow-hidden">

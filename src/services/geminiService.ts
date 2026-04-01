@@ -60,7 +60,7 @@ export const extractThemes = async (reviews: RawReview[], language: string, cust
   }
 };
 
-export const analyzeReviewsBatch = async (reviews: RawReview[], themes: {name: string, description?: string}[], language: string, onProgress?: (progress: number) => void): Promise<AnalyzedReview[]> => {
+export const analyzeReviewsBatch = async (reviews: RawReview[], themes: {name: string, description?: string}[], language: string, onProgress?: (progress: number, analyzedCount: number, totalCount: number) => void): Promise<AnalyzedReview[]> => {
   const batchSize = 25; // Smaller batch size to avoid output token limits
   const results: AnalyzedReview[] = [];
   
@@ -74,7 +74,8 @@ export const analyzeReviewsBatch = async (reviews: RawReview[], themes: {name: s
       // If all reviews in this batch have no text, just push them with empty themes
       batch.forEach(r => results.push({ ...r, themes: [] }));
       if (onProgress) {
-        onProgress(Math.min(100, Math.round(((i + batchSize) / reviews.length) * 100)));
+        const analyzedCount = Math.min(reviews.length, i + batchSize);
+        onProgress(Math.min(100, Math.round((analyzedCount / reviews.length) * 100)), analyzedCount, reviews.length);
       }
       continue;
     }
@@ -171,7 +172,8 @@ export const analyzeReviewsBatch = async (reviews: RawReview[], themes: {name: s
     }
     
     if (onProgress) {
-      onProgress(Math.min(100, Math.round(((i + batchSize) / reviews.length) * 100)));
+      const analyzedCount = Math.min(reviews.length, i + batchSize);
+      onProgress(Math.min(100, Math.round((analyzedCount / reviews.length) * 100)), analyzedCount, reviews.length);
     }
   }
   
