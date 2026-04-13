@@ -412,6 +412,7 @@ export const TopicTrendsChart: React.FC<TopicTrendsChartProps> = ({ allReviews, 
             />
             <Tooltip 
               contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+              wrapperStyle={{ zIndex: 100 }}
               formatter={(value: number, name: string) => [`${value}${valueMode === 'rel' ? '%' : ''}`, name]}
             />
             

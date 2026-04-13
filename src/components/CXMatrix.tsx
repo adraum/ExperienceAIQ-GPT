@@ -20,9 +20,13 @@ export const CXMatrix: React.FC<CXMatrixProps> = ({ reviews, filterA, filterB })
                                (filterB.length > 0 && filterB[0] !== 'none' && !filterB.includes('all'));
 
   const allTopics = useMemo(() => {
-    const topics = new Set<string>();
-    reviews.forEach(r => r.themes?.forEach(t => topics.add(t.theme)));
-    return Array.from(topics).sort();
+    const topicCounts: Record<string, number> = {};
+    reviews.forEach(r => {
+      r.themes?.forEach(t => {
+        topicCounts[t.theme] = (topicCounts[t.theme] || 0) + 1;
+      });
+    });
+    return Object.keys(topicCounts).sort((a, b) => topicCounts[b] - topicCounts[a]);
   }, [reviews]);
 
   useEffect(() => {
@@ -532,7 +536,7 @@ export const CXMatrix: React.FC<CXMatrixProps> = ({ reviews, filterA, filterB })
               axisLine={{ stroke: '#e2e8f0' }}
               label={{ value: yLabel, angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 12, fontWeight: 500 }}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+            <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} wrapperStyle={{ zIndex: 100 }} />
             
             <ReferenceLine x={xMid} stroke="#cbd5e1" strokeWidth={2} />
             <ReferenceLine y={yMid} stroke="#cbd5e1" strokeWidth={2} />

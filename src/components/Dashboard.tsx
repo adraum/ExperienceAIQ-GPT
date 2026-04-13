@@ -427,6 +427,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ reviews, filterA, filterB 
                 <Tooltip 
                   cursor={{ fill: '#e7e8e9' }}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  wrapperStyle={{ zIndex: 100 }}
                 />
                 <ReferenceLine y={kpis.datasetAvg} stroke="#878c91" strokeDasharray="3 3" label={<CustomRefLabel />} />
                 <Bar dataKey="avgRating" radius={[4, 4, 0, 0]} barSize={40}>
@@ -462,6 +463,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ reviews, filterA, filterB 
                   <Tooltip 
                     cursor={{ fill: '#e7e8e9' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    wrapperStyle={{ zIndex: 100 }}
                   />
                   <Bar dataKey="volume" radius={[0, 4, 4, 0]} barSize={24}>
                     {kpis.volumeData.map((entry, index) => (
@@ -539,6 +541,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ reviews, filterA, filterB 
               <YAxis domain={[1, 5]} axisLine={false} tickLine={false} tick={{ fill: '#565d64', fontSize: 12 }} width={30} />
               <Tooltip 
                 contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                wrapperStyle={{ zIndex: 100 }}
               />
               <Legend 
                 content={renderCustomLegend}

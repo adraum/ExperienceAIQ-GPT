@@ -164,6 +164,7 @@ export const TopicAnalysis: React.FC<TopicAnalysisProps> = ({ allReviews, filter
             </Pie>
             <Tooltip 
               contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+              wrapperStyle={{ zIndex: 100 }}
             />
           </PieChart>
         </ResponsiveContainer>
@@ -333,7 +334,7 @@ export const TopicAnalysis: React.FC<TopicAnalysisProps> = ({ allReviews, filter
                           <BarChart data={sentimentData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />
                             <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />
-                            <Tooltip cursor={{ fill: '#f1f5f9' }} />
+                            <Tooltip cursor={{ fill: '#f1f5f9' }} wrapperStyle={{ zIndex: 100 }} />
                             <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={20} />
                           </BarChart>
                         </ResponsiveContainer>

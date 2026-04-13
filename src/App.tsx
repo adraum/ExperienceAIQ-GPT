@@ -129,6 +129,17 @@ export default function App() {
       
       setAnalysisStep('Generating tailored summaries...');
       const finalThemes = await generateSummaries(analyzed, extractedThemes, lang);
+      
+      // Calculate mention counts to sort themes from most prominent to least prominent
+      const themeCounts: Record<string, number> = {};
+      analyzed.forEach(r => {
+        r.themes.forEach(t => {
+          themeCounts[t.theme] = (themeCounts[t.theme] || 0) + 1;
+        });
+      });
+      
+      finalThemes.sort((a, b) => (themeCounts[b.theme] || 0) - (themeCounts[a.theme] || 0));
+      
       setThemes(finalThemes);
       
       setAnalysisProgress(100);
