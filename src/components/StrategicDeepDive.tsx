@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AnalyzedReview } from '../types';
 import { getDeepAnalysis } from '../services/geminiService';
-import { Network, Loader2, Sparkles, ChevronRight } from 'lucide-react';
+import { Network, Loader2, Sparkles, ChevronRight, RefreshCw } from 'lucide-react';
 
 interface StrategicDeepDiveProps {
   reviews: AnalyzedReview[];
@@ -33,17 +33,28 @@ export const StrategicDeepDive: React.FC<StrategicDeepDiveProps> = ({ reviews, l
       <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
       
       <div className="p-8 md:p-12 relative z-10">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/20">
-            <Network className="w-8 h-8 text-indigo-300" />
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm border border-white/20">
+              <Network className="w-8 h-8 text-indigo-300" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">Strategic Deep Dive</h2>
+              <p className="text-indigo-200/80 mt-1 font-medium flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                Powered by Gemini 3.1 Pro Thinking
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Strategic Deep Dive</h2>
-            <p className="text-indigo-200/80 mt-1 font-medium flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              Powered by Gemini 3.1 Pro Thinking
-            </p>
-          </div>
+          {currentAnalysis && !isLoading && (
+            <button
+              onClick={handleGenerate}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl font-medium transition-colors flex items-center gap-2 text-sm backdrop-blur-sm"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Re-run Analysis
+            </button>
+          )}
         </div>
 
         {!currentAnalysis && !isLoading ? (
