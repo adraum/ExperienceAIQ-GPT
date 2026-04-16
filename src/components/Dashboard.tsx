@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { format, parseISO, isValid } from 'date-fns';
 import { Eye, EyeOff, Download } from 'lucide-react';
 import { downloadChartAsImage } from '../utils/downloadImage';
+import { MapSection } from './MapSection';
 
 interface DashboardProps {
   reviews: AnalyzedReview[];
@@ -616,6 +617,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ reviews, filterA, filterB 
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* Map Section */}
+      <MapSection reviews={reviews} />
     </div>
   );
 };

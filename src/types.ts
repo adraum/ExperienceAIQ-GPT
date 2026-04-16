@@ -3,6 +3,7 @@ export interface RawReview {
   Stars: number;
   Review: string;
   Location: string;
+  Address?: string;
 }
 
 export interface ThemeDefinition {

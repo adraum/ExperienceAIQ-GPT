@@ -392,7 +392,8 @@ export const chatWithData = async (history: {role: 'user'|'model', text: string}
     const themesStr = r.themes && r.themes.length > 0 
       ? ` [Themes: ${r.themes.map(t => `${t.theme} (${t.sentiment})`).join(', ')}]` 
       : '';
-    return `[${r.Location} - ${r.Date} - ${r.Stars} Stars]${themesStr}: ${r.Review}`;
+    const addressStr = r.Address ? ` - Address: ${r.Address}` : '';
+    return `[${r.Location}${addressStr} - ${r.Date} - ${r.Stars} Stars]${themesStr}: ${r.Review}`;
   }).join('\n');
   
   const systemInstruction = `You are an AI assistant for a CX Benchmarking app.
@@ -401,10 +402,10 @@ If the question cannot be answered using the dataset, explicitly state that you 
 You have access to the conversation history. Refer to previous turns and specific reviews or themes when relevant.
 IMPORTANT: You MUST write your entire response in ${language}.
 
-The dataset includes metadata for each review such as Location, Date, and Star Rating. You CAN and SHOULD use this metadata to answer questions about longitudinal development, timeseries trends, location comparisons, and rating distributions.
+The dataset includes metadata for each review such as Location, Address (if available), Date, and Star Rating. You CAN and SHOULD use this metadata to answer questions about longitudinal development, timeseries trends, location comparisons, rating distributions, and geographic questions based on the address.
 
 The dataset is provided in the following format for each review:
-[Location - Date - Stars Stars] [Themes: theme1 (sentiment), theme2 (sentiment)] : Review text
+[Location - Address: ... - Date - Stars Stars] [Themes: theme1 (sentiment), theme2 (sentiment)] : Review text
 
 Dataset:
 ${context}`;

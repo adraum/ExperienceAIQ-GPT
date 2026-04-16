@@ -76,6 +76,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, onError })
             Stars: Number(row.Stars),
             Review: row.Review ? String(row.Review).trim() : '',
             Location: String(row.Location),
+            Address: row.Address ? String(row.Address) : undefined,
           };
         });
 
