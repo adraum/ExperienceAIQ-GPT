@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import localforage from 'localforage';
 import { FileUpload } from './components/FileUpload';
 import { Dashboard } from './components/Dashboard';
 import { TopicAnalysis } from './components/TopicAnalysis';
@@ -23,6 +24,7 @@ export default function App() {
   const [totalReviewsCount, setTotalReviewsCount] = useState(0);
   const [analysisStep, setAnalysisStep] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(true);
   
   const [filterA, setFilterA] = useState<string[]>(['all']);
   const [filterB, setFilterB] = useState<string[]>(['none']);
@@ -34,7 +36,111 @@ export default function App() {
     { role: 'model', text: "Hi! I'm your CX Intelligence Assistant. Ask me anything about the review data, and I'll answer based strictly on what customers have said." }
   ]);
 
-  const handleReset = () => {
+  const getTabSessionKey = () => {
+    let key = sessionStorage.getItem('cx-dashboard-session-key');
+    if (!key) {
+      key = `cx-session-${Math.random().toString(36).substring(2, 10)}`;
+      sessionStorage.setItem('cx-dashboard-session-key', key);
+    }
+    return key;
+  };
+
+  const cleanupOldSessions = async () => {
+    try {
+      const keys = await localforage.keys();
+      const now = Date.now();
+      for (const key of keys) {
+        if (key.startsWith('cx-session-meta-')) {
+          const timestamp = await localforage.getItem(key) as number;
+          // Delete sessions older than 24 hours since last activity
+          if (now - timestamp > 24 * 60 * 60 * 1000) {
+            const dataKey = key.replace('cx-session-meta-', 'cx-session-');
+            await localforage.removeItem(dataKey);
+            await localforage.removeItem(key);
+          }
+        } else if (key.startsWith('cx-session-') && key.split('-').length > 2 && !keys.includes(key.replace('cx-session-', 'cx-session-meta-'))) {
+          // Old key cleanup logic (timestamp in the key name itself)
+          const parts = key.split('-');
+          const timestamp = parseInt(parts[2], 10);
+          if (!isNaN(timestamp) && now - timestamp > 24 * 60 * 60 * 1000) {
+            await localforage.removeItem(key);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to cleanup old sessions:", err);
+    }
+  };
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        await cleanupOldSessions();
+        const key = getTabSessionKey();
+        const storedData = await localforage.getItem(key);
+        if (storedData) {
+          const data = storedData as any;
+          if (data.analyzedReviews && data.themes && data.language) {
+            setRawReviews(data.rawReviews || null);
+            setAnalyzedReviews(data.analyzedReviews);
+            setThemes(data.themes);
+            setLanguage(data.language);
+            setDatasetName(data.datasetName || null);
+            setChatMessages(data.chatMessages || [
+              { role: 'model', text: "Hi! I'm your CX Intelligence Assistant. Ask me anything about the review data, and I'll answer based strictly on what customers have said." }
+            ]);
+            setFilterA(data.filterA || ['all']);
+            setFilterB(data.filterB || ['none']);
+            setFromDate(data.fromDate || '');
+            setToDate(data.toDate || '');
+          }
+        }
+      } catch (err) {
+        console.error("Failed to restore session from localforage:", err);
+      } finally {
+        setIsRestoring(false);
+      }
+    };
+    restoreSession();
+  }, []);
+
+  useEffect(() => {
+    if (analyzedReviews && themes && language && datasetName && !isAnalyzing && !isRestoring) {
+      const key = getTabSessionKey();
+      const metaKey = `cx-session-meta-${key.replace('cx-session-', '')}`;
+      
+      Promise.all([
+        localforage.setItem(key, {
+          rawReviews,
+          analyzedReviews,
+          themes,
+          language,
+          datasetName,
+          chatMessages,
+          filterA,
+          filterB,
+          fromDate,
+          toDate
+        }),
+        localforage.setItem(metaKey, Date.now())
+      ]).catch(err => console.error("Failed to save session to localforage:", err));
+    }
+  }, [
+    analyzedReviews,
+    themes,
+    language,
+    datasetName,
+    rawReviews,
+    chatMessages,
+    filterA,
+    filterB,
+    fromDate,
+    toDate,
+    isAnalyzing,
+    isRestoring
+  ]);
+
+  const handleReset = async () => {
     setRawReviews(null);
     setAnalyzedReviews(null);
     setThemes(null);
@@ -49,6 +155,10 @@ export default function App() {
     setChatMessages([
       { role: 'model', text: "Hi! I'm your CX Intelligence Assistant. Ask me anything about the review data, and I'll answer based strictly on what customers have said." }
     ]);
+    const key = getTabSessionKey();
+    const metaKey = `cx-session-meta-${key.replace('cx-session-', '')}`;
+    await localforage.removeItem(key);
+    await localforage.removeItem(metaKey);
   };
 
   const firms = useMemo(() => {
@@ -151,6 +261,18 @@ export default function App() {
       setIsAnalyzing(false);
     }
   };
+
+  if (isRestoring) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white p-10 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 text-center">
+          <Loader2 className="w-12 h-12 text-indigo-600 animate-spin mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Restoring Session</h2>
+          <p className="text-slate-500 font-medium mt-2">Loading your previously analyzed dataset...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!rawReviews && !isAnalyzing) {
     return (
