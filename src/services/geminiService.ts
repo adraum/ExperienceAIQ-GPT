@@ -61,13 +61,20 @@ export const analyzeLanguage = async (reviews: RawReview[]): Promise<string> => 
   const sample = reviews.filter(r => r.Review.length > 0).slice(0, 50).map(r => r.Review).join('\n');
   const text = await callAi({
     messages: [
-      { role: 'system', content: 'You identify the primary language of text. Respond with only the language name in English (e.g., English, German, Spanish). No punctuation, no extra words.' },
+      { role: 'system', content: 'You identify the primary language of text. Respond with only the language name in English (e.g., English, German, Spanish, French). No punctuation, no extra words, no formatting.' },
       { role: 'user', content: `Identify the primary language of these reviews:\n\n${sample}` },
     ],
-    max_completion_tokens: 32,
+    // GPT-5 reasoning models consume reasoning tokens against max_completion_tokens
+    // even at low effort — give enough headroom so the visible answer is not truncated.
+    max_completion_tokens: 512,
     reasoning_effort: 'low',
   });
-  return text.trim().split(/\s|\n/)[0] || 'English';
+  const cleaned = text
+    .trim()
+    .replace(/["'`*_]/g, '')
+    .replace(/[.,;:!?]+$/g, '')
+    .trim();
+  return cleaned.split(/\s|\n/)[0] || 'English';
 };
 
 export const extractThemes = async (reviews: RawReview[], language: string, customThemes?: CustomThemeInput[]): Promise<ThemeDefinition[]> => {
