@@ -52,7 +52,7 @@ export const Chatbot: React.FC<ChatbotProps> = ({ reviews, language, messages, s
         </div>
         <div>
           <h2 className="text-xl font-bold text-slate-800">Chat with your Data</h2>
-          <p className="text-sm text-slate-500">Powered by Gemini 3.1 Pro</p>
+          <p className="text-sm text-slate-500">Powered by Azure OpenAI (GPT-5)</p>
         </div>
       </div>
 
