@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AnalyzedReview } from '../types';
-import { getDeepAnalysis } from '../services/geminiService';
+import { getDeepAnalysis, DeepDiveStatus } from '../services/geminiService';
 import { Network, Loader2, Sparkles, ChevronRight, RefreshCw } from 'lucide-react';
 
 interface StrategicDeepDiveProps {
@@ -12,19 +12,22 @@ interface StrategicDeepDiveProps {
 export const StrategicDeepDive: React.FC<StrategicDeepDiveProps> = ({ reviews, language, location }) => {
   const [analyses, setAnalyses] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [status, setStatus] = useState<DeepDiveStatus | null>(null);
 
   const currentLocationKey = location || 'all';
   const currentAnalysis = analyses[currentLocationKey] || null;
 
   const handleGenerate = async () => {
     setIsLoading(true);
+    setStatus(null);
     try {
-      const result = await getDeepAnalysis(reviews, language, location);
+      const result = await getDeepAnalysis(reviews, language, location, setStatus);
       setAnalyses(prev => ({ ...prev, [currentLocationKey]: result }));
     } catch (e) {
       setAnalyses(prev => ({ ...prev, [currentLocationKey]: "Failed to generate deep analysis." }));
     } finally {
       setIsLoading(false);
+      setStatus(null);
     }
   };
 
@@ -42,7 +45,7 @@ export const StrategicDeepDive: React.FC<StrategicDeepDiveProps> = ({ reviews, l
               <h2 className="text-3xl font-bold tracking-tight">Strategic Deep Dive</h2>
               <p className="text-indigo-200/80 mt-1 font-medium flex items-center gap-2">
                 <Sparkles className="w-4 h-4" />
-                Powered by Gemini 3.1 Pro Thinking
+                Powered by Azure OpenAI (GPT-5)
               </p>
             </div>
           </div>
@@ -77,9 +80,27 @@ export const StrategicDeepDive: React.FC<StrategicDeepDiveProps> = ({ reviews, l
           <div className="mt-12 flex flex-col items-center justify-center py-12 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
             <Loader2 className="w-12 h-12 text-indigo-400 animate-spin mb-6" />
             <h3 className="text-xl font-semibold text-white mb-2">Thinking Deeply...</h3>
-            <p className="text-indigo-200/70 text-center max-w-md">
-              Gemini is analyzing subtle patterns in the text, connecting them with star ratings, and formulating strategic recommendations. This may take a minute.
-            </p>
+            {status?.splitNeeded ? (
+              <>
+                <div className="px-4 py-1.5 mb-3 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-sm font-semibold">
+                  ~{status.estimatedTokens.toLocaleString()} Tokens &gt; 250.000 — Datensatz wird aufgeteilt
+                </div>
+                <p className="text-indigo-100 font-semibold text-base mb-1">
+                  {status.phase === 'merging'
+                    ? 'Ergebnisse werden zusammengeführt (3/3)'
+                    : `Analyse ${status.currentPart}/2 läuft...`}
+                </p>
+                <p className="text-indigo-200/70 text-center max-w-md">
+                  {status.phase === 'merging'
+                    ? 'Die Teilanalysen werden zu einer kohärenten Gesamtanalyse synthetisiert.'
+                    : 'Der Datensatz ist zu groß für einen einzelnen API-Call. Die Reviews werden in zwei Hälften analysiert und anschließend zusammengeführt.'}
+                </p>
+              </>
+            ) : (
+              <p className="text-indigo-200/70 text-center max-w-md">
+                Azure OpenAI is analyzing subtle patterns in the text, connecting them with star ratings, and formulating strategic recommendations. This may take a minute.
+              </p>
+            )}
           </div>
         ) : (
           <div className="mt-8 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm p-8 prose prose-invert max-w-none prose-headings:text-indigo-300 prose-a:text-indigo-400">
