@@ -333,26 +333,98 @@ ${promptData}`,
   return allSummaries;
 };
 
-export const getDeepAnalysis = async (reviews: AnalyzedReview[], language: string, location?: string): Promise<string> => {
-  const context = reviews.filter(r => r.Review.length > 0).map(r => `[${r.Location} - ${r.Stars} Stars - ${r.Date}]: ${r.Review}`).join('\n');
+export type DeepDiveStatus =
+  | { phase: 'analyzing'; currentPart: number; totalParts: number; estimatedTokens: number; splitNeeded: boolean }
+  | { phase: 'merging'; currentPart: number; totalParts: number; estimatedTokens: number; splitNeeded: true };
+
+const DEEP_DIVE_TOKEN_LIMIT = 250_000;
+const estimateTokens = (text: string): number => Math.ceil(text.length / 3);
+
+export const getDeepAnalysis = async (
+  reviews: AnalyzedReview[],
+  language: string,
+  location?: string,
+  onStatus?: (status: DeepDiveStatus) => void,
+): Promise<string> => {
+  const filtered = reviews.filter(r => r.Review.length > 20);
   const focus = location
     ? `Focus your analysis specifically on the location: "${location}". Include what sets this specific firm/location apart compared to the others, its unique strengths and weaknesses, and tailored strategic recommendations.`
     : 'Provide a comparative analysis of all locations.';
 
-  try {
-    return await callAi({
-      messages: [
-        { role: 'system', content: 'You are a Senior Data Analyst specialized in customer experience benchmarking.' },
-        {
-          role: 'user',
-          content: `Here is a dataset of customer reviews.
+  const systemContent = 'You are a Senior Data Analyst specialized in customer experience benchmarking.';
+  const buildContext = (rs: AnalyzedReview[]) =>
+    rs.map(r => `[${r.Location} - ${r.Stars} Stars - ${r.Date}]: ${r.Review}`).join('\n');
+
+  const buildUserPrompt = (context: string, partInfo?: { partNum: number; totalParts: number }) => {
+    const partHeader = partInfo
+      ? `IMPORTANT: This is part ${partInfo.partNum} of ${partInfo.totalParts} of a larger dataset. Analyze ONLY the reviews provided below; the merge step will combine your output with the analyses of the other parts.\n\n`
+      : '';
+    return `${partHeader}Here is a dataset of customer reviews.
 ${focus}
 
 Identify root causes for negative feedback, highlight comparative strengths, and provide actionable strategic recommendations.
 Connect subtle patterns in the text with the star ratings.
 IMPORTANT: You MUST write your entire analysis and response in ${language}.
 
-${context}`,
+${context}`;
+  };
+
+  const fullContext = buildContext(filtered);
+  const fullPrompt = systemContent + buildUserPrompt(fullContext);
+  const estimatedTokens = estimateTokens(fullPrompt);
+  const splitNeeded = estimatedTokens > DEEP_DIVE_TOKEN_LIMIT;
+
+  try {
+    if (!splitNeeded) {
+      onStatus?.({ phase: 'analyzing', currentPart: 1, totalParts: 1, estimatedTokens, splitNeeded: false });
+      return await callAi({
+        messages: [
+          { role: 'system', content: systemContent },
+          { role: 'user', content: buildUserPrompt(fullContext) },
+        ],
+        reasoning_effort: 'high',
+      });
+    }
+
+    // Split into two halves + merge call (3 API calls in total).
+    const half = Math.ceil(filtered.length / 2);
+    const part1 = filtered.slice(0, half);
+    const part2 = filtered.slice(half);
+
+    onStatus?.({ phase: 'analyzing', currentPart: 1, totalParts: 3, estimatedTokens, splitNeeded: true });
+    const analysis1 = await callAi({
+      messages: [
+        { role: 'system', content: systemContent },
+        { role: 'user', content: buildUserPrompt(buildContext(part1), { partNum: 1, totalParts: 2 }) },
+      ],
+      reasoning_effort: 'high',
+    });
+
+    onStatus?.({ phase: 'analyzing', currentPart: 2, totalParts: 3, estimatedTokens, splitNeeded: true });
+    const analysis2 = await callAi({
+      messages: [
+        { role: 'system', content: systemContent },
+        { role: 'user', content: buildUserPrompt(buildContext(part2), { partNum: 2, totalParts: 2 }) },
+      ],
+      reasoning_effort: 'high',
+    });
+
+    onStatus?.({ phase: 'merging', currentPart: 3, totalParts: 3, estimatedTokens, splitNeeded: true });
+    return await callAi({
+      messages: [
+        { role: 'system', content: systemContent },
+        {
+          role: 'user',
+          content: `You are merging two preliminary strategic analyses of the SAME customer review dataset that was split into two halves due to its size.
+${focus}
+Combine them into a single, coherent strategic deep-dive analysis as if you had analyzed the full dataset at once. Do NOT present them as two separate sections. Synthesize the root causes for negative feedback, comparative strengths, patterns, and actionable strategic recommendations across both halves. Remove redundancies, resolve any contradictions in favor of the stronger evidence, and preserve every unique insight from either half.
+IMPORTANT: You MUST write your entire response in ${language}.
+
+=== Analysis of Part 1 of 2 ===
+${analysis1}
+
+=== Analysis of Part 2 of 2 ===
+${analysis2}`,
         },
       ],
       reasoning_effort: 'high',
