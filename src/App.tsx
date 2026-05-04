@@ -11,6 +11,18 @@ import { RawReview, AnalyzedReview, ThemeSummary, CustomThemeInput } from './typ
 import { analyzeLanguage, extractThemes, analyzeReviewsBatch, generateSummaries } from './services/geminiService';
 import { Loader2, AlertCircle, Filter, LayoutDashboard, Brain, MessageSquare, FileText, Info, X, Calendar } from 'lucide-react';
 
+// Sort themes by their total mention count across the analysed dataset (descending).
+// Themes with no mentions land at the end while still being preserved.
+const sortThemesByFrequency = <T extends { theme: string }>(themes: T[], analyzed: AnalyzedReview[]): T[] => {
+  const counts: Record<string, number> = {};
+  analyzed.forEach(r => {
+    r.themes.forEach(t => {
+      counts[t.theme] = (counts[t.theme] || 0) + 1;
+    });
+  });
+  return [...themes].sort((a, b) => (counts[b.theme] || 0) - (counts[a.theme] || 0));
+};
+
 export default function App() {
   const [rawReviews, setRawReviews] = useState<RawReview[] | null>(null);
   const [analyzedReviews, setAnalyzedReviews] = useState<AnalyzedReview[] | null>(null);
@@ -83,7 +95,7 @@ export default function App() {
           if (data.analyzedReviews && data.themes && data.language) {
             setRawReviews(data.rawReviews || null);
             setAnalyzedReviews(data.analyzedReviews);
-            setThemes(data.themes);
+            setThemes(sortThemesByFrequency(data.themes, data.analyzedReviews));
             setLanguage(data.language);
             setDatasetName(data.datasetName || null);
             setChatMessages(data.chatMessages || [
@@ -239,18 +251,8 @@ export default function App() {
       
       setAnalysisStep('Generating tailored summaries...');
       const finalThemes = await generateSummaries(analyzed, extractedThemes, lang);
-      
-      // Calculate mention counts to sort themes from most prominent to least prominent
-      const themeCounts: Record<string, number> = {};
-      analyzed.forEach(r => {
-        r.themes.forEach(t => {
-          themeCounts[t.theme] = (themeCounts[t.theme] || 0) + 1;
-        });
-      });
-      
-      finalThemes.sort((a, b) => (themeCounts[b.theme] || 0) - (themeCounts[a.theme] || 0));
-      
-      setThemes(finalThemes);
+
+      setThemes(sortThemesByFrequency(finalThemes, analyzed));
       
       setAnalysisProgress(100);
     } catch (err) {

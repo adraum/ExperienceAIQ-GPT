@@ -1,8 +1,8 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import * as XLSX from 'xlsx';
 import { RawReview, CustomThemeInput } from '../types';
-import { Upload, Settings2, Plus, Trash2, FileText, Brain } from 'lucide-react';
+import { Upload, Settings2, Plus, Trash2, FileText, Brain, FileSpreadsheet } from 'lucide-react';
 
 interface FileUploadProps {
   onDataLoaded: (data: RawReview[], filename: string, customThemes?: CustomThemeInput[]) => void;
@@ -14,6 +14,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, onError })
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [parsedData, setParsedData] = useState<RawReview[] | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
+  const [themeUploadInfo, setThemeUploadInfo] = useState<string | null>(null);
+  const themeFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddTheme = () => {
     setCustomThemes([...customThemes, { name: '', description: '' }]);
@@ -27,6 +29,76 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, onError })
     const newThemes = [...customThemes];
     newThemes[index][field] = value;
     setCustomThemes(newThemes);
+  };
+
+  const handleThemeFileUpload = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: false }) as Record<string, unknown>[];
+
+        if (json.length === 0) {
+          onError('The themes file is empty.');
+          return;
+        }
+
+        // Accept Topic/Theme/Name + Description, case-insensitive.
+        const firstRow = json[0];
+        const keys = Object.keys(firstRow);
+        const findKey = (...candidates: string[]) =>
+          keys.find(k => candidates.some(c => k.trim().toLowerCase() === c.toLowerCase()));
+        const topicKey = findKey('Topic', 'Theme', 'Name');
+        const descKey = findKey('Description', 'Beschreibung');
+
+        if (!topicKey) {
+          onError('Themes file must contain a "Topic" (or "Theme"/"Name") column.');
+          return;
+        }
+
+        const imported: CustomThemeInput[] = [];
+        const seen = new Set<string>();
+        json.forEach(row => {
+          const name = String(row[topicKey] ?? '').trim();
+          const description = descKey ? String(row[descKey] ?? '').trim() : '';
+          if (!name) return;
+          const dedupeKey = name.toLowerCase();
+          if (seen.has(dedupeKey)) return;
+          seen.add(dedupeKey);
+          imported.push({ name, description });
+        });
+
+        if (imported.length === 0) {
+          onError('No themes found in the uploaded file.');
+          return;
+        }
+
+        // Merge with existing themes, deduping by name (case-insensitive).
+        const merged: CustomThemeInput[] = [...customThemes];
+        const existingNames = new Set(customThemes.map(t => t.name.trim().toLowerCase()).filter(Boolean));
+        let added = 0;
+        imported.forEach(t => {
+          if (existingNames.has(t.name.toLowerCase())) return;
+          merged.push(t);
+          existingNames.add(t.name.toLowerCase());
+          added++;
+        });
+        setCustomThemes(merged);
+        setThemeUploadInfo(
+          added === imported.length
+            ? `Imported ${added} theme${added === 1 ? '' : 's'} from ${file.name}.`
+            : `Imported ${added} new theme${added === 1 ? '' : 's'} from ${file.name} (${imported.length - added} duplicate${imported.length - added === 1 ? '' : 's'} skipped).`
+        );
+      } catch (err) {
+        onError("Failed to parse the themes file. Please ensure it's a valid Excel or CSV file with a 'Topic' column.");
+      } finally {
+        if (themeFileInputRef.current) themeFileInputRef.current.value = '';
+      }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   const handleStartAnalysis = () => {
@@ -159,23 +231,54 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded, onError })
         
         {showAdvanced && (
           <div className="p-4 border-t border-slate-200 bg-slate-50/50">
-            <div className="flex items-center justify-between mb-4">
-              <div>
+            <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
+              <div className="min-w-0">
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Custom Themes (Optional)
                 </label>
                 <p className="text-xs text-slate-500">
                   Define specific themes and descriptions to guide the AI's analysis. If left empty, themes will be automatically detected.
+                  You can also upload an Excel/CSV file with two columns: <span className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">Topic</span> and <span className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">Description</span>.
                 </p>
               </div>
-              <button
-                onClick={handleAddTheme}
-                className="flex items-center gap-1 px-3 py-1.5 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-lg text-sm font-medium transition-colors shrink-0"
-              >
-                <Plus className="w-4 h-4" /> Add Theme
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <input
+                  ref={themeFileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleThemeFileUpload(file);
+                  }}
+                />
+                <button
+                  onClick={() => themeFileInputRef.current?.click()}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-white text-slate-700 hover:bg-slate-100 border border-slate-300 rounded-lg text-sm font-medium transition-colors"
+                  title="Upload an Excel/CSV file with Topic and Description columns"
+                >
+                  <FileSpreadsheet className="w-4 h-4" /> Upload Themes
+                </button>
+                <button
+                  onClick={handleAddTheme}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> Add Theme
+                </button>
+              </div>
             </div>
-            
+
+            {themeUploadInfo && (
+              <div className="mb-3 px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-lg flex items-center justify-between gap-3">
+                <span>{themeUploadInfo}</span>
+                <button
+                  onClick={() => setThemeUploadInfo(null)}
+                  className="text-emerald-600 hover:text-emerald-800 font-bold"
+                  aria-label="Dismiss"
+                >×</button>
+              </div>
+            )}
+
             <div className="space-y-3">
               {customThemes.map((theme, index) => (
                 <div key={index} className="flex gap-3 items-start bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
