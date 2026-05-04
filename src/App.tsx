@@ -49,11 +49,11 @@ export default function App() {
     try {
       const keys = await localforage.keys();
       const now = Date.now();
+      const MAX_AGE_MS = 72 * 60 * 60 * 1000; // 72 hours since last activity
       for (const key of keys) {
         if (key.startsWith('cx-session-meta-')) {
           const timestamp = await localforage.getItem(key) as number;
-          // Delete sessions older than 24 hours since last activity
-          if (now - timestamp > 24 * 60 * 60 * 1000) {
+          if (now - timestamp > MAX_AGE_MS) {
             const dataKey = key.replace('cx-session-meta-', 'cx-session-');
             await localforage.removeItem(dataKey);
             await localforage.removeItem(key);
@@ -62,7 +62,7 @@ export default function App() {
           // Old key cleanup logic (timestamp in the key name itself)
           const parts = key.split('-');
           const timestamp = parseInt(parts[2], 10);
-          if (!isNaN(timestamp) && now - timestamp > 24 * 60 * 60 * 1000) {
+          if (!isNaN(timestamp) && now - timestamp > MAX_AGE_MS) {
             await localforage.removeItem(key);
           }
         }
