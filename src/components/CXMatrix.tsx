@@ -1,24 +1,28 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { AnalyzedReview } from '../types';
+import { AnalyzedReview, ThemeSummary } from '../types';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell, LabelList, Label } from 'recharts';
 import { Download } from 'lucide-react';
 import { downloadChartAsImage } from '../utils/downloadImage';
 
 interface CXMatrixProps {
   reviews: AnalyzedReview[];
+  themes?: ThemeSummary[];
   filterA: string[];
   filterB: string[];
 }
 
 type MatrixType = 'firm' | 'topic' | 'location_by_topic';
 
-export const CXMatrix: React.FC<CXMatrixProps> = ({ reviews, filterA, filterB }) => {
+export const CXMatrix: React.FC<CXMatrixProps> = ({ reviews, themes, filterA, filterB }) => {
   const [matrixType, setMatrixType] = useState<MatrixType>('firm');
   const [selectedTopic, setSelectedTopic] = useState<string>('');
 
-  const hasSpecificSelection = (!filterA.includes('all') && filterA.length > 0) || 
+  const hasSpecificSelection = (!filterA.includes('all') && filterA.length > 0) ||
                                (filterB.length > 0 && filterB[0] !== 'none' && !filterB.includes('all'));
 
+  // Use the full theme list from props (preserving the global frequency order) and
+  // append any extra themes that only show up in the reviews. This guarantees that
+  // every defined theme appears in the topic dropdown / matrix even with 0 mentions.
   const allTopics = useMemo(() => {
     const topicCounts: Record<string, number> = {};
     reviews.forEach(r => {
@@ -26,8 +30,26 @@ export const CXMatrix: React.FC<CXMatrixProps> = ({ reviews, filterA, filterB })
         topicCounts[t.theme] = (topicCounts[t.theme] || 0) + 1;
       });
     });
-    return Object.keys(topicCounts).sort((a, b) => topicCounts[b] - topicCounts[a]);
-  }, [reviews]);
+    const ordered: string[] = [];
+    const seen = new Set<string>();
+    if (themes) {
+      themes.forEach(t => {
+        if (!seen.has(t.theme)) {
+          ordered.push(t.theme);
+          seen.add(t.theme);
+        }
+      });
+    }
+    Object.keys(topicCounts)
+      .sort((a, b) => topicCounts[b] - topicCounts[a])
+      .forEach(t => {
+        if (!seen.has(t)) {
+          ordered.push(t);
+          seen.add(t);
+        }
+      });
+    return ordered;
+  }, [reviews, themes]);
 
   useEffect(() => {
     if (allTopics.length > 0 && !selectedTopic) {
@@ -79,11 +101,17 @@ export const CXMatrix: React.FC<CXMatrixProps> = ({ reviews, filterA, filterB })
         });
       });
 
+      // Seed with the full theme list so themes with 0 mentions still render.
+      allTopics.forEach(t => {
+        if (!topicStats[t]) topicStats[t] = { total: 0, positive: 0 };
+      });
+
       rawData = Object.keys(topicStats).map(theme => {
+        const stats = topicStats[theme];
         return {
           name: theme,
-          volume: topicStats[theme].total,
-          yValue: Number(((topicStats[theme].positive / topicStats[theme].total) * 100).toFixed(1)),
+          volume: stats.total,
+          yValue: stats.total > 0 ? Number(((stats.positive / stats.total) * 100).toFixed(1)) : 0,
           isSelected: true // Topics don't fade based on location filters
         };
       });

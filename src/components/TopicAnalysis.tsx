@@ -508,7 +508,7 @@ export const TopicAnalysis: React.FC<TopicAnalysisProps> = ({ allReviews, filter
       </div>
 
       {/* CX Performance Matrix */}
-      <CXMatrix reviews={filteredReviews} filterA={filterA} filterB={filterB} />
+      <CXMatrix reviews={filteredReviews} themes={themes} filterA={filterA} filterB={filterB} />
     </div>
   );
 };

@@ -244,11 +244,27 @@ export const generateSummaries = async (
   themeDefs: ThemeDefinition[],
   language: string
 ): Promise<ThemeSummary[]> => {
-  const allSummaries: ThemeSummary[] = [];
+  const summariesByTheme = new Map<string, ThemeSummary>();
   const themeBatchSize = 3;
 
-  for (let i = 0; i < themeDefs.length; i += themeBatchSize) {
-    const themeBatch = themeDefs.slice(i, i + themeBatchSize);
+  // Themes with no review mentions are summarised locally so we never lose them
+  // (the LLM tends to drop empty entries).
+  const themesWithMentions: ThemeDefinition[] = [];
+  for (const td of themeDefs) {
+    const hasMention = analyzedReviews.some(r => r.themes.some(t => t.theme === td.theme));
+    if (!hasMention) {
+      summariesByTheme.set(td.theme, {
+        theme: td.theme,
+        summary: 'No reviews matched this theme in the dataset.',
+        firmSummaries: {},
+      });
+    } else {
+      themesWithMentions.push(td);
+    }
+  }
+
+  for (let i = 0; i < themesWithMentions.length; i += themeBatchSize) {
+    const themeBatch = themesWithMentions.slice(i, i + themeBatchSize);
     const themeData = themeBatch.map(td => {
       const locationsData: Record<string, string[]> = {};
       const overallReviews: string[] = [];
@@ -287,6 +303,7 @@ export const generateSummaries = async (
             role: 'user',
             content: `Based on the following theme definitions and full customer reviews (grouped by location and overall), generate concise summaries.
 The summaries MUST be written in ${language}.
+For EACH theme in the input, you MUST return exactly one entry in the output — never drop a theme.
 For each theme, provide an 'overall' summary of what customers are saying.
 Also provide a tailored summary for EACH specific location listed under that theme.
 ONLY generate summaries for locations that have reviews provided in the data. If a location has no reviews for a theme, do not include it in the firmSummaries array.
@@ -306,7 +323,8 @@ ${promptData}`,
       const parsed = safeParseJson<{ summaries?: SummaryResultRaw[] } | SummaryResultRaw[]>(text, { summaries: [] });
       const arr: SummaryResultRaw[] = Array.isArray(parsed) ? parsed : (parsed.summaries || []);
 
-      const batchSummaries: ThemeSummary[] = arr.map(item => {
+      arr.forEach(item => {
+        if (!item || !item.theme) return;
         const firmSummariesRecord: Record<string, string> = {};
         if (Array.isArray(item.firmSummaries)) {
           item.firmSummaries.forEach(fs => {
@@ -317,20 +335,25 @@ ${promptData}`,
         } else if (item.firmSummaries && typeof item.firmSummaries === 'object') {
           Object.assign(firmSummariesRecord, item.firmSummaries);
         }
-        return {
+        summariesByTheme.set(item.theme, {
           theme: item.theme,
-          summary: item.summary,
+          summary: item.summary || '',
           firmSummaries: firmSummariesRecord,
-        };
+        });
       });
-
-      allSummaries.push(...batchSummaries);
     } catch (e) {
       console.error('Failed to parse summaries batch', e);
     }
   }
 
-  return allSummaries;
+  // Backfill any theme the LLM might still have skipped, preserving the input order.
+  return themeDefs.map(td =>
+    summariesByTheme.get(td.theme) ?? {
+      theme: td.theme,
+      summary: 'Summary could not be generated for this theme.',
+      firmSummaries: {},
+    }
+  );
 };
 
 export type DeepDiveStatus =
