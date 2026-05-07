@@ -45,7 +45,7 @@ export const StrategicDeepDive: React.FC<StrategicDeepDiveProps> = ({ reviews, l
               <h2 className="text-3xl font-bold tracking-tight">Strategic Deep Dive</h2>
               <p className="text-indigo-200/80 mt-1 font-medium flex items-center gap-2">
                 <Sparkles className="w-4 h-4" />
-                Powered by Azure OpenAI (GPT-5)
+                Powered by meinGPT
               </p>
             </div>
           </div>
@@ -98,7 +98,7 @@ export const StrategicDeepDive: React.FC<StrategicDeepDiveProps> = ({ reviews, l
               </>
             ) : (
               <p className="text-indigo-200/70 text-center max-w-md">
-                Azure OpenAI is analyzing subtle patterns in the text, connecting them with star ratings, and formulating strategic recommendations. This may take a minute.
+                meinGPT is analyzing subtle patterns in the text, connecting them with star ratings, and formulating strategic recommendations. This may take a minute.
               </p>
             )}
           </div>

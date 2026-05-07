@@ -10,12 +10,11 @@ interface AiCallOptions {
   messages: ChatMessage[];
   response_format?: ResponseFormat;
   max_completion_tokens?: number;
-  reasoning_effort?: 'low' | 'medium' | 'high';
 }
 
 const AI_ENDPOINT = '/api/ai';
 
-async function callAi({ messages, response_format, max_completion_tokens, reasoning_effort }: AiCallOptions): Promise<string> {
+async function callAi({ messages, response_format, max_completion_tokens }: AiCallOptions): Promise<string> {
   const res = await fetch(AI_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -23,7 +22,6 @@ async function callAi({ messages, response_format, max_completion_tokens, reason
       messages,
       response_format,
       max_completion_tokens: max_completion_tokens ?? 16384,
-      reasoning_effort,
     }),
   });
 
@@ -64,10 +62,7 @@ export const analyzeLanguage = async (reviews: RawReview[]): Promise<string> => 
       { role: 'system', content: 'You identify the primary language of text. Respond with only the language name in English (e.g., English, German, Spanish, French). No punctuation, no extra words, no formatting.' },
       { role: 'user', content: `Identify the primary language of these reviews:\n\n${sample}` },
     ],
-    // GPT-5 reasoning models consume reasoning tokens against max_completion_tokens
-    // even at low effort — give enough headroom so the visible answer is not truncated.
-    max_completion_tokens: 512,
-    reasoning_effort: 'low',
+    max_completion_tokens: 64,
   });
   const cleaned = text
     .trim()
@@ -105,7 +100,6 @@ ${sample}`,
       },
     ],
     response_format: { type: 'json_object' },
-    reasoning_effort: 'high',
   });
 
   const parsed = safeParseJson<{ themes?: ThemeDefinition[] } | ThemeDefinition[]>(text, { themes: [] });
@@ -143,7 +137,6 @@ const requestBatchAnalysis = async (prompt: string): Promise<BatchThemeResult[]>
       { role: 'user', content: prompt },
     ],
     response_format: { type: 'json_object' },
-    reasoning_effort: 'low',
   });
   const parsed = safeParseJson<{ results?: BatchThemeResult[] } | BatchThemeResult[]>(text, { results: [] });
   if (Array.isArray(parsed)) return parsed;
@@ -317,7 +310,6 @@ ${promptData}`,
           },
         ],
         response_format: { type: 'json_object' },
-        reasoning_effort: 'high',
       });
 
       const parsed = safeParseJson<{ summaries?: SummaryResultRaw[] } | SummaryResultRaw[]>(text, { summaries: [] });
@@ -405,7 +397,6 @@ ${context}`;
           { role: 'system', content: systemContent },
           { role: 'user', content: buildUserPrompt(fullContext) },
         ],
-        reasoning_effort: 'high',
       });
     }
 
@@ -420,7 +411,6 @@ ${context}`;
         { role: 'system', content: systemContent },
         { role: 'user', content: buildUserPrompt(buildContext(part1), { partNum: 1, totalParts: 2 }) },
       ],
-      reasoning_effort: 'high',
     });
 
     onStatus?.({ phase: 'analyzing', currentPart: 2, totalParts: 3, estimatedTokens, splitNeeded: true });
@@ -429,7 +419,6 @@ ${context}`;
         { role: 'system', content: systemContent },
         { role: 'user', content: buildUserPrompt(buildContext(part2), { partNum: 2, totalParts: 2 }) },
       ],
-      reasoning_effort: 'high',
     });
 
     onStatus?.({ phase: 'merging', currentPart: 3, totalParts: 3, estimatedTokens, splitNeeded: true });
@@ -450,7 +439,6 @@ ${analysis1}
 ${analysis2}`,
         },
       ],
-      reasoning_effort: 'high',
     });
   } catch (e) {
     console.error('Deep analysis failed', e);
@@ -497,7 +485,6 @@ ${context}`;
   try {
     return await callAi({
       messages,
-      reasoning_effort: 'medium',
     });
   } catch (e) {
     console.error('Chat failed', e);
